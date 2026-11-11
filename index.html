@@ -299,7 +299,6 @@ textarea{min-height:64px}
 <div class="scroll"><div id="cv"></div></div>
 </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 const F=['nombre','puesto','tel','mail','dir','perfil','hab','idi','cur','nac','civil','nacion','curp','rfc','nss','afore','lic','disp'];
 let foto='',cur=null,exps=[],edus=[],recs=[];
@@ -337,12 +336,77 @@ function bajar(blob,n){const a=document.createElement('a');a.href=URL.createObje
 async function compartir(blob,n,tipo){const f=new File([blob],n,{type:tipo});
  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:n});return}catch(e){if(e&&e.name=='AbortError')return}}
  bajar(blob,n)}
+function loadImg(src){return new Promise(res=>{if(!src)return res(null);const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src})}
+function wrapT(x,t,mw){const out=[];
+ String(t||'').split('\n').forEach(par=>{let line='';
+  par.split(/\s+/).filter(Boolean).forEach(w=>{
+   while(x.measureText(w).width>mw){let k=w.length;while(k>1&&x.measureText(w.slice(0,k)).width>mw)k--;if(line){out.push(line);line=''}out.push(w.slice(0,k));w=w.slice(k)}
+   const tst=line?line+' '+w:w;
+   if(line&&x.measureText(tst).width>mw){out.push(line);line=w}else line=tst});
+  if(line)out.push(line)});
+ return out}
+function dibujaCV(x,img,col,st){
+ const g=id=>$(id).value.trim(),FN='Arial,Helvetica,sans-serif';
+ const set=(b,sz,c,it)=>{x.font=(it?'italic ':'')+(b?'bold ':'')+sz+'px '+FN;x.fillStyle=c};
+ x.textBaseline='top';
+ const H2=(y,t,X,w,tc,lc)=>{y+=22;set(1,13,tc);x.fillText(t.toUpperCase(),X,y);y+=18;x.fillStyle=lc;x.fillRect(X,y,w,2);return y+10};
+ const P=(y,t,X,w,c,sz,b,it)=>{sz=sz||12.5;set(b,sz,c,it);wrapT(x,t,w).forEach(l=>{x.fillText(l,X,y);y+=sz*1.45});return y+3};
+ const LI=(y,arr,X,w,c)=>{set(0,12.5,c);arr.forEach(t=>{const ls=wrapT(x,t,w-14);x.fillText('•',X+2,y);ls.forEach(l=>{x.fillText(l,X+14,y);y+=18.1});y+=3});return y};
+ // foto
+ x.fillStyle='#fff';x.beginPath();x.arc(130,103,79,0,7);x.fill();
+ x.fillStyle='rgba(0,0,0,.15)';x.beginPath();x.arc(130,103,75,0,7);x.fill();
+ if(img){x.save();x.beginPath();x.arc(130,103,75,0,7);x.clip();x.drawImage(img,55,28,150,150);x.restore()}
+ // barra lateral
+ const X1=20,W1=220;let ys=178;
+ ys=H2(ys,'Contacto',X1,W1,st,st);
+ [['📞',g('tel')],['✉',g('mail')],['📍',g('dir')]].filter(a=>a[1]).forEach(a=>{ys=P(ys,a[0]+' '+a[1],X1,W1,st)});
+ const L=[['Nacimiento','nac'],['Estado civil','civil'],['Nacionalidad','nacion'],['CURP','curp'],['RFC','rfc'],['NSS','nss'],['AFORE','afore'],['Licencia','lic'],['Disponibilidad','disp']];
+ const dl=L.filter(a=>g(a[1])).map(a=>a[0]+': '+g(a[1]));
+ if(dl.length){ys=H2(ys,'Datos personales',X1,W1,st,st);dl.forEach(t=>{ys=P(ys,t,X1,W1,st)})}
+ const hb=lines($('hab').value),id=lines($('idi').value),cu=lines($('cur').value);
+ if(hb.length){ys=H2(ys,'Habilidades',X1,W1,st,st);ys=LI(ys,hb,X1,W1,st)}
+ if(id.length){ys=H2(ys,'Idiomas',X1,W1,st,st);ys=LI(ys,id,X1,W1,st)}
+ // columna principal
+ const X2=288,W2=478;let ym=32;
+ set(1,30,'#222');wrapT(x,(g('nombre')||'Tu nombre').toUpperCase(),W2).forEach(l=>{x.fillText(l,X2,ym);ym+=33});
+ if(g('puesto')){ym+=4;ym=P(ym,g('puesto'),X2,W2,'#555',16)}
+ const IT=(y,a,b,d)=>{set(1,13,'#222');wrapT(x,a,W2).forEach(l=>{x.fillText(l,X2,y);y+=15});
+  if(b){set(0,11.5,'#666',1);wrapT(x,b,W2).forEach(l=>{x.fillText(l,X2,y);y+=14})}
+  if(d)y=P(y,d,X2,W2,'#222');return y+10};
+ if(g('perfil')){ym=H2(ym,'Perfil',X2,W2,'#222',col);ym=P(ym,g('perfil'),X2,W2,'#222')}
+ if(exps.length){ym=H2(ym,'Experiencia',X2,W2,'#222',col);exps.forEach(e=>{ym=IT(ym,e.a,(e.b||'')+(e.c?' · '+e.c:''),e.d)})}
+ if(cu.length){ym=H2(ym,'Cursos y certificaciones',X2,W2,'#222',col);ym=LI(ym,cu,X2,W2,'#222')}
+ if(recs.length){ym=H2(ym,'Recomendaciones',X2,W2,'#222',col);recs.forEach(e=>{ym=IT(ym,e.a,(e.b||'')+(e.c?' · Tel. '+e.c:''),'')})}
+ if(edus.length){ym=H2(ym,'Educación',X2,W2,'#222',col);edus.forEach(e=>{ym=IT(ym,e.a,(e.b||'')+(e.c?' · '+e.c:''),'')})}
+ return Math.max(ys+28,ym+32)}
+function u8(d){const b=atob(d.split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+function armarPdf(jp,w,h){
+ const enc=new TextEncoder(),parts=[],off=[];let len=0;
+ const add=d=>{const b=typeof d=='string'?enc.encode(d):d;parts.push(b);len+=b.length};
+ const obj=(id,body)=>{off[id]=len;add(id+' 0 obj\n'+body+'\nendobj\n')};
+ const n=jp.length;add('%PDF-1.4\n');
+ obj(1,'<</Type/Catalog/Pages 2 0 R>>');
+ obj(2,'<</Type/Pages/Kids ['+jp.map((_,i)=>(3+3*i)+' 0 R').join(' ')+']/Count '+n+'>>');
+ jp.forEach((d,i)=>{const pg=3+3*i,ct=pg+1,im=pg+2,c='q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+  obj(pg,'<</Type/Page/Parent 2 0 R/MediaBox[0 0 595.28 841.89]/Resources<</XObject<</Im0 '+im+' 0 R>>>>/Contents '+ct+' 0 R>>');
+  obj(ct,'<</Length '+c.length+'>>\nstream\n'+c+'\nendstream');
+  off[im]=len;add(im+' 0 obj\n<</Type/XObject/Subtype/Image/Width '+w+'/Height '+h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+d.length+'>>\nstream\n');add(d);add('\nendstream\nendobj\n')});
+ const total=2+3*n,xr=len;let x='xref\n0 '+(total+1)+'\n0000000000 65535 f \n';
+ for(let i=1;i<=total;i++)x+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+ add(x+'trailer\n<</Size '+(total+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF');
+ return new Blob(parts,{type:'application/pdf'})}
+async function pdfBlob(){
+ render();const n=parseInt(color.slice(1),16),l=.299*(n>>16)+.587*(n>>8&255)+.114*(n&255),st=l>150?'#222':'#fff';
+ const img=await loadImg(foto),S=2,W=794,PH=1123;
+ const total=dibujaCV(document.createElement('canvas').getContext('2d'),img,color,st),pages=Math.max(1,Math.ceil(total/PH)),jp=[];
+ for(let p=0;p<pages;p++){const c=document.createElement('canvas');c.width=W*S;c.height=PH*S;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.fillStyle=color;x.fillRect(0,0,260*S,c.height);
+  x.setTransform(S,0,0,S,0,-p*PH*S);dibujaCV(x,img,color,st);jp.push(u8(c.toDataURL('image/jpeg',.92)))}
+ return armarPdf(jp,W*S,PH*S)}
 async function hacerPdf(enviar){
- if(!window.html2pdf){alert('Para crear el PDF directo se necesita internet. Mientras, usa "Imprimir" y elige Guardar como PDF.');return}
- render();const c=$('cv').cloneNode(true);c.style.transform='none';c.style.margin='0';
  const nom='CV-'+($('nombre').value.trim()||'curriculum').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g,'').replace(/\s+/g,'-')+'.pdf';
- try{const blob=await html2pdf().set({margin:0,image:{type:'jpeg',quality:.95},html2canvas:{scale:2,useCORS:true,scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(c).outputPdf('blob');
-  enviar?await compartir(blob,nom,'application/pdf'):bajar(blob,nom)}catch(e){alert('No se pudo crear el PDF. Prueba con "Imprimir".')}}
+ try{const blob=await pdfBlob();enviar?await compartir(blob,nom,'application/pdf'):bajar(blob,nom)}
+ catch(e){alert('No se pudo crear el PDF: '+(e&&e.message||e))}}
 function exportar(){const d=st();if(!Object.keys(d).length){alert('Aún no tienes CV guardados. Guarda uno primero.');return}
  const blob=new Blob([JSON.stringify({app:'lc-curriculum',cvs:d})],{type:'application/json'});
  compartir(blob,'respaldo-cv-'+new Date().toISOString().slice(0,10)+'.json','application/json')}
