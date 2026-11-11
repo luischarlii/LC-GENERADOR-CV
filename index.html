@@ -288,15 +288,18 @@ textarea{min-height:64px}
 <fieldset><legend>Guardar</legend>
 <label>Nombre del CV</label><input id="cvname" placeholder="Ej. CV Ventas">
 <button class="btn" onclick="guardar()">Guardar</button><button class="btn s" onclick="nuevo()">Nuevo</button>
+<div style="margin-top:10px"><button class="btn s" onclick="exportar()">⬇ Exportar respaldo</button><button class="btn s" onclick="$('imp').click()">⬆ Importar respaldo</button>
+<input type="file" id="imp" accept=".json,application/json" hidden></div>
 <div id="lista"></div>
 </fieldset>
 </div>
 <div id="prev">
-<div class="noprint"><label>Color del CV: toca o arrastra en la esfera</label><div class="wheelbox"><canvas id="wheel" width="220" height="220"></canvas><span id="dot"></span></div><label>Brillo <span id="hexl"></span></label><input type="range" id="lum" min="10" max="90" value="50"><button class="btn" onclick="window.print()">Crear PDF</button>
+<div class="noprint"><label>Color del CV: toca o arrastra en la esfera</label><div class="wheelbox"><canvas id="wheel" width="220" height="220"></canvas><span id="dot"></span></div><label>Brillo <span id="hexl"></span></label><input type="range" id="lum" min="10" max="90" value="50"><button class="btn" onclick="hacerPdf(true)">Enviar PDF (WhatsApp / correo)</button><button class="btn s" onclick="hacerPdf(false)">Guardar PDF</button><button class="btn s" onclick="window.print()">Imprimir</button>
 <p style="color:var(--mu);font-size:12px">El PDF sale limpio, sin marcas de agua. En el menú de impresión elige “Guardar como PDF” (en iPhone: compartir → Guardar en Archivos).</p></div>
 <div class="scroll"><div id="cv"></div></div>
 </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 const F=['nombre','puesto','tel','mail','dir','perfil','hab','idi','cur','nac','civil','nacion','curp','rfc','nss','afore','lic','disp'];
 let foto='',cur=null,exps=[],edus=[],recs=[];
@@ -330,6 +333,23 @@ function buildWheel(){const c=$('wheel');let on=false;
  c.onpointerup=c.onpointercancel=()=>{on=false};
  $('lum').oninput=e=>{L=+e.target.value;color=hsl2hex(H,S,L);drawWheel();save();paint()}}
 addEventListener('beforeprint',()=>render());
+function bajar(blob,n){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+async function compartir(blob,n,tipo){const f=new File([blob],n,{type:tipo});
+ if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:n});return}catch(e){if(e&&e.name=='AbortError')return}}
+ bajar(blob,n)}
+async function hacerPdf(enviar){
+ if(!window.html2pdf){alert('Para crear el PDF directo se necesita internet. Mientras, usa "Imprimir" y elige Guardar como PDF.');return}
+ render();const c=$('cv').cloneNode(true);c.style.transform='none';c.style.margin='0';
+ const nom='CV-'+($('nombre').value.trim()||'curriculum').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g,'').replace(/\s+/g,'-')+'.pdf';
+ try{const blob=await html2pdf().set({margin:0,image:{type:'jpeg',quality:.95},html2canvas:{scale:2,useCORS:true,scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(c).outputPdf('blob');
+  enviar?await compartir(blob,nom,'application/pdf'):bajar(blob,nom)}catch(e){alert('No se pudo crear el PDF. Prueba con "Imprimir".')}}
+function exportar(){const d=st();if(!Object.keys(d).length){alert('Aún no tienes CV guardados. Guarda uno primero.');return}
+ const blob=new Blob([JSON.stringify({app:'lc-curriculum',cvs:d})],{type:'application/json'});
+ compartir(blob,'respaldo-cv-'+new Date().toISOString().slice(0,10)+'.json','application/json')}
+$('imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();
+ rd.onload=()=>{try{const j=JSON.parse(rd.result),src=j.cvs||j;if(typeof src!='object'||Array.isArray(src))throw 0;
+  const s=st();let n=0;Object.keys(src).forEach(k=>{if(!src[k]||typeof src[k]!='object')return;let nom=k,i=2;while(s[nom])nom=k+' ('+(i++)+')';s[nom]=src[k];n++});
+  put(s);lista();alert('Se importaron '+n+' CV.')}catch(x){alert('El archivo no es un respaldo válido.')}};rd.readAsText(f)};
 function tab(n){$('form').style.display=n==1?'block':'none';$('prev').style.display=n==2?'block':'none';
  $('t1').className=n==1?'on':'';$('t2').className=n==2?'on':'';if(n==2){render();fit()}}
 function fit(){const c=$('cv'),w=$('prev').clientWidth,k=Math.min(1,w/794);c.style.transform='scale('+k+')';c.parentElement.style.height=(c.offsetHeight*k)+'px'}
